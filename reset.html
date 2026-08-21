@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reset Password — ABAPrep</title>
+<style>
+  :root{
+    --ink:#14181f;
+    --ink-soft:#4a5462;
+    --rule:#dfe3ea;
+    --paper:#fbfcfd;
+    --accent:#1c5fb4;
+    --panel:#f2f6fb;
+    --good:#0f7a52;
+    --good-bg:#e6f4ea;
+    --bad:#bb0000;
+    --bad-bg:#fbe9e7;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font:400 17px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:26rem;margin:0 auto;padding:4rem 1.5rem 6rem}
+  .eyebrow{
+    font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+    margin:0 0 .9rem;
+  }
+  h1{font-size:1.7rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 .6rem;font-weight:650}
+  .sub{color:var(--ink-soft);margin:0 0 2rem;font-size:1rem}
+  .panel{
+    background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+    padding:1.35rem 1.5rem;margin:0 0 1.4rem;
+  }
+  .panel p{margin:0;font-size:.95rem}
+  label{
+    display:block;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);
+    margin:0 0 .5rem;
+  }
+  .field{margin:0 0 1.1rem}
+  input[type="password"]{
+    width:100%;font-size:1rem;font-family:inherit;color:var(--ink);
+    background:#fff;border:1px solid var(--rule);border-radius:8px;
+    padding:.7rem .8rem;
+  }
+  input[type="password"]:focus{outline:none;border-color:var(--accent)}
+  .hint{color:var(--ink-soft);font-size:.85rem;margin:.4rem 0 0}
+  button{
+    display:block;width:100%;font:600 1rem/1 inherit;color:#fff;
+    background:var(--accent);border:none;border-radius:8px;
+    padding:.9rem 1rem;margin:1.6rem 0 0;cursor:pointer;
+  }
+  button:disabled{opacity:.55;cursor:default}
+  button:not(:disabled):hover{background:#174e94}
+  .notice{
+    border-radius:8px;padding:1rem 1.1rem;margin:0 0 1.4rem;font-size:.95rem;
+  }
+  .notice.error{background:var(--bad-bg);color:var(--bad)}
+  .notice.success{background:var(--good-bg);color:var(--good)}
+  .notice p{margin:0}
+  .notice p + p{margin-top:.5rem}
+  a{color:var(--accent)}
+  footer{
+    margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--rule);
+    font-size:.88rem;color:var(--ink-soft);
+  }
+  @media (max-width:560px){
+    .wrap{padding:2.5rem 1.15rem 4rem}
+    h1{font-size:1.45rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">ABAPrep</p>
+  <h1>Reset your password</h1>
+  <p class="sub" id="subtitle">Choose a new password for your account.</p>
+
+  <!-- Invalid/expired-link and Supabase-error states render here; the form
+       below is hidden in both cases via the `hidden` attribute in JS. -->
+  <div class="notice error" id="errorNotice" hidden>
+    <p id="errorText"></p>
+  </div>
+
+  <div class="notice success" id="successNotice" hidden>
+    <p><strong>Password updated.</strong></p>
+    <p>Return to the ABAPrep app and sign in with your new password.</p>
+  </div>
+
+  <form id="resetForm">
+    <div class="field">
+      <label for="password">New password</label>
+      <input type="password" id="password" autocomplete="new-password" placeholder="At least 8 characters">
+    </div>
+    <div class="field">
+      <label for="confirmPassword">Confirm new password</label>
+      <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="Retype your password">
+    </div>
+    <p class="hint" id="formError"></p>
+    <button type="submit" id="submitBtn">Set new password</button>
+  </form>
+
+  <footer>
+    ABAPrep · Everythings
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  var SUPABASE_URL = 'https://rhenftwqhfagatqztjke.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_oCxSkOJ1RVgp_DYsAIvUow_c8N4Ydh9';
+
+  // Password minimum lives in lib/auth.ts (MIN_PASSWORD_LENGTH) in the
+  // abaprep-app repo — the single source of truth there. This page is a
+  // separate repo with no build step, so it cannot import that file;
+  // hardcoding the same number here is unavoidable. IF MIN_PASSWORD_LENGTH
+  // EVER CHANGES IN lib/auth.ts, UPDATE THIS CONSTANT TO MATCH — see
+  // CLAUDE.md in abaprep-app, which names this file as a place that drifts
+  // silently otherwise.
+  var MIN_PASSWORD_LENGTH = 8;
+
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  var form = document.getElementById('resetForm');
+  var passwordInput = document.getElementById('password');
+  var confirmInput = document.getElementById('confirmPassword');
+  var formError = document.getElementById('formError');
+  var submitBtn = document.getElementById('submitBtn');
+  var subtitle = document.getElementById('subtitle');
+  var errorNotice = document.getElementById('errorNotice');
+  var errorText = document.getElementById('errorText');
+  var successNotice = document.getElementById('successNotice');
+
+  function showLinkError(message) {
+    subtitle.hidden = true;
+    form.hidden = true;
+    errorText.textContent = message;
+    errorNotice.hidden = false;
+  }
+
+  /**
+   * Supabase places the recovery token in the URL FRAGMENT
+   * (#access_token=...&type=recovery&...), not the query string — the
+   * fragment never reaches the server, so it must be read client-side.
+   * A malformed/expired link either omits these params entirely or Supabase
+   * appends #error=...&error_code=otp_expired&error_description=... instead.
+   */
+  function parseFragmentParams() {
+    var hash = window.location.hash || '';
+    if (hash.charAt(0) === '#') hash = hash.slice(1);
+    return new URLSearchParams(hash);
+  }
+
+  var params = parseFragmentParams();
+  var fragmentError = params.get('error_code') || params.get('error');
+  var accessToken = params.get('access_token');
+  var tokenType = params.get('type');
+
+  if (fragmentError) {
+    // Seen during testing on 21 Aug: recovery links are short-lived and
+    // otp_expired is the most common failure.
+    if (fragmentError === 'otp_expired') {
+      showLinkError(
+        'This reset link has expired. Reset links are only valid for a short time — ' +
+        'go back to the ABAPrep app and request a new one.'
+      );
+    } else {
+      showLinkError(
+        'This reset link is invalid (' + (params.get('error_description') || fragmentError).replace(/\+/g, ' ') +
+        '). Go back to the ABAPrep app and request a new one.'
+      );
+    }
+  } else if (!accessToken || tokenType !== 'recovery') {
+    showLinkError(
+      'This link is missing or invalid. Go back to the ABAPrep app and request a new password reset.'
+    );
+  }
+  // Otherwise: supabase-js's client, constructed with default options,
+  // detects the recovery session from the URL fragment itself on load — no
+  // manual setSession call is needed before calling updateUser below.
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    formError.textContent = '';
+
+    var password = passwordInput.value;
+    var confirmPassword = confirmInput.value;
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      formError.textContent = 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters.';
+      return;
+    }
+    if (password !== confirmPassword) {
+      formError.textContent = 'Passwords do not match.';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Setting password…';
+
+    supabaseClient.auth.updateUser({ password: password }).then(function (result) {
+      if (result.error) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Set new password';
+        formError.textContent = result.error.message || 'Something went wrong. Please try again.';
+        return;
+      }
+      form.hidden = true;
+      subtitle.hidden = true;
+      successNotice.hidden = false;
+    }).catch(function (err) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Set new password';
+      formError.textContent = 'Network error — check your connection and try again.';
+    });
+  });
+})();
+</script>
+</body>
+</html>
