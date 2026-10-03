@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm Email — ABAPrep</title>
+<style>
+  :root{
+    --ink:#14181f;
+    --ink-soft:#4a5462;
+    --rule:#dfe3ea;
+    --paper:#fbfcfd;
+    --accent:#1c5fb4;
+    --panel:#f2f6fb;
+    --good:#0f7a52;
+    --good-bg:#e6f4ea;
+    --bad:#bb0000;
+    --bad-bg:#fbe9e7;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font:400 17px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:26rem;margin:0 auto;padding:4rem 1.5rem 6rem}
+  .eyebrow{
+    font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    letter-spacing:.14em;color:var(--accent);
+    margin:0 0 .9rem;
+  }
+  h1{font-size:1.7rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 1.4rem;font-weight:650}
+  .notice{
+    border-radius:8px;padding:1rem 1.1rem;margin:0 0 1.4rem;font-size:.95rem;
+  }
+  .notice.error{background:var(--bad-bg);color:var(--bad)}
+  .notice.success{background:var(--good-bg);color:var(--good)}
+  .notice.info{background:var(--panel);border:1px solid var(--rule);color:var(--ink)}
+  .notice p{margin:0}
+  .notice p + p{margin-top:.5rem}
+  footer{
+    margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--rule);
+    font-size:.88rem;color:var(--ink-soft);
+  }
+  @media (max-width:560px){
+    .wrap{padding:2.5rem 1.15rem 4rem}
+    h1{font-size:1.45rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">ABAPrep</p>
+  <h1>Email confirmation</h1>
+
+  <!-- Exactly one of these two is revealed by the script below. -->
+  <div class="notice success" id="successNotice" role="status" hidden>
+    <p><strong>Email confirmed.</strong></p>
+    <p>Go back to the ABAPrep app and sign in.</p>
+  </div>
+
+  <div class="notice error" id="errorNotice" role="alert" hidden>
+    <p id="errorText"></p>
+  </div>
+
+  <noscript>
+    <div class="notice info">
+      <p>This page needs JavaScript to show whether your link worked. Go back to the ABAPrep app and try to sign in; if it asks you to confirm your email, tap &ldquo;Resend confirmation email&rdquo;.</p>
+    </div>
+  </noscript>
+
+  <footer>
+    ABAPrep · everythings.xyz
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  // Landing page for the link in the sign-up confirmation email
+  // (EMAIL_CONFIRM_REDIRECT_URL in lib/auth.ts, abaprep-app). By the time
+  // the browser arrives here Supabase has already verified the link and
+  // confirmed the address server-side, so this page only REPORTS the
+  // outcome. It deliberately loads no Supabase client (and no third-party
+  // script of any kind): the success fragment carries a live session's
+  // tokens, and nothing here should read, store or hand them to anyone.
+  // Nothing from the URL is ever written into the page, only the fixed
+  // messages below, so a crafted fragment cannot inject content.
+  //
+  // No redirect into the app, on purpose: the link is as likely to be opened
+  // on a laptop as on the phone that has the app.
+  var successNotice = document.getElementById('successNotice');
+  var errorNotice = document.getElementById('errorNotice');
+  var errorText = document.getElementById('errorText');
+
+  var WHAT_TO_DO =
+    'Open the ABAPrep app, try to sign in, and tap “Resend confirmation email” to get a new link.';
+
+  function showError(message) {
+    errorText.textContent = message + ' ' + WHAT_TO_DO;
+    errorNotice.hidden = false;
+  }
+
+  /**
+   * Supabase reports the result in the URL FRAGMENT, not the query string
+   * (the fragment never reaches the server, so it is read client-side):
+   *   success -> #access_token=...&refresh_token=...&type=signup&...
+   *   failure -> #error=access_denied&error_code=otp_expired&error_description=...
+   * An expired link and an already-used link both come back as otp_expired.
+   */
+  function parseFragmentParams() {
+    var hash = window.location.hash || '';
+    if (hash.charAt(0) === '#') hash = hash.slice(1);
+    return new URLSearchParams(hash);
+  }
+
+  var params = parseFragmentParams();
+  var errorCode = params.get('error_code');
+  var anyError = errorCode || params.get('error');
+
+  if (errorCode === 'otp_expired') {
+    showError('This confirmation link has expired or has already been used.');
+  } else if (anyError) {
+    showError('This confirmation link is invalid.');
+  } else if (params.get('access_token')) {
+    successNotice.hidden = false;
+  } else {
+    // Opened directly, or the fragment was lost on the way here.
+    showError('This confirmation link is missing or invalid.');
+  }
+})();
+</script>
+</body>
+</html>
